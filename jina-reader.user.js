@@ -12,6 +12,7 @@
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
+// @run-at       document-start
 // @connect      r.jina.ai
 // ==/UserScript==
 
@@ -85,12 +86,103 @@
     }
   }
 
+  function openHelp() {
+    const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jina Reader: Help</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; line-height: 1.6; color: #111; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    h2 { margin: 24px 0 8px; font-size: 16px; }
+    code { background: #f3f4f6; padding: 2px 4px; border-radius: 4px; }
+    ul { padding-left: 18px; }
+    .muted { color: #6b7280; }
+  </style>
+</head>
+<body>
+  <h1>Jina Reader: Page to Markdown</h1>
+  <p class="muted">Tampermonkey userscript</p>
+  <h2>English</h2>
+  <ul>
+    <li><b>Convert page now</b>: send current page to Jina Reader and open Markdown.</li>
+    <li><b>Set API Key</b>: set your API key to increase rate limits.</li>
+    <li><b>respondWith</b>: choose <code>markdown</code> / <code>html</code> / <code>text</code> / <code>screenshot</code>.</li>
+    <li><b>waitForSelector</b>: wait for a selector before fetching (dynamic pages).</li>
+    <li><b>targetSelector</b>: extract only the target element.</li>
+    <li><b>cacheToleranceSeconds</b>: allow cached result within N seconds.</li>
+    <li><b>noCache</b>: force fresh fetch.</li>
+    <li><b>openInNewTab</b>: open result in a new tab.</li>
+    <li><b>autoCopy</b>: copy result to clipboard automatically.</li>
+    <li><b>hotkey</b>: set the hotkey (default <code>Alt+J</code>).</li>
+  </ul>
+  <h2>中文说明</h2>
+  <ul>
+    <li><b>Convert page now</b>：立即转换当前页面并打开 Markdown。</li>
+    <li><b>Set API Key</b>：设置 API Key 提升速率限制。</li>
+    <li><b>respondWith</b>：返回格式 <code>markdown</code> / <code>html</code> / <code>text</code> / <code>screenshot</code>。</li>
+    <li><b>waitForSelector</b>：等待选择器出现再抓取（动态页面）。</li>
+    <li><b>targetSelector</b>：只提取指定元素。</li>
+    <li><b>cacheToleranceSeconds</b>：允许使用 N 秒内缓存结果。</li>
+    <li><b>noCache</b>：强制不使用缓存。</li>
+    <li><b>openInNewTab</b>：新标签打开结果。</li>
+    <li><b>autoCopy</b>：自动复制到剪贴板。</li>
+    <li><b>hotkey</b>：设置快捷键（默认 <code>Alt+J</code>）。</li>
+  </ul>
+</body>
+</html>`;
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    GM_openInTab(url, { active: true, insert: true });
+  }
+
+  function showToast(message, type) {
+    const existing = document.getElementById("jina-reader-toast");
+    if (existing) existing.remove();
+
+    const toast = document.createElement("div");
+    toast.id = "jina-reader-toast";
+    toast.textContent = message;
+    toast.style.position = "fixed";
+    toast.style.zIndex = "2147483647";
+    toast.style.right = "16px";
+    toast.style.bottom = "16px";
+    toast.style.maxWidth = "360px";
+    toast.style.padding = "10px 12px";
+    toast.style.borderRadius = "10px";
+    toast.style.fontSize = "13px";
+    toast.style.lineHeight = "1.4";
+    toast.style.boxShadow = "0 8px 24px rgba(0,0,0,0.18)";
+    toast.style.color = "#fff";
+    toast.style.background =
+      type === "error" ? "rgba(220, 38, 38, 0.92)" : "rgba(17, 24, 39, 0.92)";
+    toast.style.backdropFilter = "blur(6px)";
+    toast.style.webkitBackdropFilter = "blur(6px)";
+    toast.style.transition = "opacity 200ms ease, transform 200ms ease";
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(8px)";
+    document.documentElement.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      toast.style.opacity = "1";
+      toast.style.transform = "translateY(0)";
+    });
+
+    window.setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(8px)";
+      window.setTimeout(() => toast.remove(), 200);
+    }, 2800);
+  }
+
   function fetchMarkdown() {
     const config = getConfig();
     const readerUrl = buildReaderUrl(window.location.href);
     const headers = buildHeaders(config);
 
-    window.alert("Jina Reader 正在获取页面内容，请稍等约 10 秒...");
+    showToast("Jina Reader 正在获取页面内容，请稍等约 10 秒...");
 
     GM_xmlhttpRequest({
       method: "GET",
@@ -103,7 +195,7 @@
       },
       onerror: (error) => {
         const status = error && error.status ? ` (status: ${error.status})` : "";
-        window.alert(`Jina Reader 请求失败${status}，请检查网络或 API Key。`);
+        showToast(`Jina Reader 请求失败${status}，请检查网络或 API Key。`, "error");
       },
     });
   }
@@ -121,17 +213,22 @@
 
   function matchesHotkey(event, hotkey) {
     const parsed = parseHotkey(hotkey);
+    const key = event.key ? event.key.toLowerCase() : "";
+    const code = event.code ? event.code.toLowerCase() : "";
+    const codeKey =
+      parsed.key.length === 1 ? `key${parsed.key}` : parsed.key;
     return (
       event.altKey === parsed.alt &&
       event.ctrlKey === parsed.ctrl &&
       event.shiftKey === parsed.shift &&
       event.metaKey === parsed.meta &&
-      event.key.toLowerCase() === parsed.key
+      (key === parsed.key || code === codeKey)
     );
   }
 
   function registerMenu() {
     GM_registerMenuCommand("Jina Reader: Convert page now", fetchMarkdown);
+    GM_registerMenuCommand("Jina Reader: Help (EN/中文)", openHelp);
     GM_registerMenuCommand("Jina Reader: Set API Key", () =>
       promptAndSet("API Key", "apiKey", getConfig().apiKey)
     );
