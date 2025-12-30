@@ -15,8 +15,9 @@ Convert the current page into LLM-friendly Markdown via `r.jina.ai` with a hotke
 ## Install
 
 1. Install Tampermonkey.
-2. Create a new script and paste in `jina-reader.user.js`.
-3. Save.
+2. Open Tampermonkey → Dashboard → Add new script.
+3. Paste the content of `jina-reader.user.js` into the editor.
+4. Save.
 
 ## Usage
 
